@@ -1,0 +1,168 @@
+---
+output:
+  html_document: default
+  pdf_document: default
+---
+#Purpose of the project 
+
+In this project, your goal will be to use data from accelerometers on the
+belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har 
+(see the section on the Weight Lifting Exercise Dataset).
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+
+(1) Read in data and find the dimensions. 
+```{r, echo = FALSE, message = FALSE}
+setwd('/users/faithlee/Downloads')
+
+library(caret)
+set.seed(100)
+library(ggplot2)
+library(lattice)
+
+test<-read.csv('pml-testing.csv')
+training<-read.csv('pml-training.csv')
+
+
+paste("Dimension of test set:")
+dim(test)
+paste("Dimension of training set:")
+dim(training)
+```
+
+
+(2) I removed columns with missing data. Subsequently, I split the training set into 60\% and 40\%, one for training, another for cross-validation. Then, I looked at the summary of each of the variable. 
+
+(3) While not all of it is shown here, I have done some exploratory data analysis just to have a feel of the variables. As there are so many variables, I couldn't explore them all. 
+
+
+```{r, echo = FALSE, message = FALSE}
+missing<-rep(0, ncol(training))
+for(i in 1:ncol(training)){
+  missing[i]<-sum(training[,i]=="")
+}
+
+missing_test<-rep(0, ncol(test))
+for(i in 1:ncol(test)){
+  missing_test[i]<-sum(test[,i]=="")
+}
+
+training<-training[,which(missing==0)]
+test<-test[,which(missing==0)]
+
+#paste("Dimension of training data after removing NA or missing columns:", dim(training))
+#paste("Dimension of testing data after removing NA or missing columns:", dim(test))
+
+#histogram(~total_accel_belt|classe, data = training)
+
+ggplot()+geom_point(data = training, aes(x = gyros_arm_x, y = gyros_arm_y, color = classe)) +theme_bw()
+
+ggplot()+geom_point(data = training, aes(x = magnet_arm_x, y = magnet_arm_y, color = classe))+theme_bw()
+
+```
+
+Because of what the plots show, I did not do variable selection or exclude any variables. 
+I will proceed to use the caret package to do classifcation under k-NN, Gradient Boosting, Random Forest and Radial SVM. 
+
+
+```{r, echo = FALSE, message = FALSE}
+#Let me just ignore the first 7 variables
+#Pre-processing
+training<-training[,8:60]
+test<-test[,8:59]
+summary(training)
+
+
+index<-sample(1:nrow(training), 0.6*nrow(training), replace = FALSE)
+#index_1<-sample(index, 1000, replace = FALSE)
+training<-training[index,]
+cv_set<-training[-index,]
+
+```
+
+(a) GBM 
+```{r, echo = FALSE, message = FALSE}
+# By Gradient Boosting 
+  model_gbm<-train(classe ~ ., method = "gbm", preProcess = c("center", "scale"), data = training, verbose = FALSE)
+  prediction_gbm<-predict(model_gbm, cv_set[,1:52])
+  #accuracy_proportion<-sum(ifelse(prediction_gbm== cv_set[,53], 1, 0))/nrow(cv_set)
+  #paste("Accuracy of gradient boosting on cross validation set:", accuracy_proportion) 
+   confusionMatrix(prediction_gbm, cv_set[,53])
+   prediction_gbm_test<-predict(model_gbm, test)
+   paste("Results on test set")
+   prediction_gbm_test
+   
+```
+
+(b) By Random Forest 
+```{r, echo = FALSE, message = FALSE}
+  model_rf<-train(classe ~ ., method = "rf", preProcess = c("center", "scale"), data = training)
+  prediction_rf<-predict(model_rf, cv_set[,1:52])
+  #accuracy_proportion_rf<-sum(ifelse(prediction_rf== cv_set[,53], 1, 0))/nrow(cv_set)
+  #paste("Accuracy of random forest on cross validation set:", accuracy_proportion_rf) 
+  confusionMatrix(prediction_rf, cv_set[,53])
+  prediction_rf_test<-predict(model_rf, test)
+  paste("Results on test set")
+  prediction_rf_test
+  
+#paste("Accuracy of random forest on cross validation set:", accuracy_proportion_rf) 
+#prediction_rf_test
+  #Recursive partitioning 
+  #model_rpart<-train(classe ~ ., method = "rpart", preProcess = c("center", "scale"), data = #training)
+#  prediction_rpart<-predict(model_rpart, cv_set[,1:52])
+#  accuracy_proportion_rpart<-sum(ifelse(prediction_rpart== cv_set[,53], 1, 0))/nrow(cv_set)
+#  prediction_rpart_test<-predict(model_rpart, test)
+  
+#accuracy_proportion_rpart
+#prediction_rpart_test
+# By Support Vector Machine 
+```
+
+(c) Radial SVM 
+
+```{r, echo = FALSE , message = FALSE}
+  model_svm<-train(classe ~ ., method = "svmRadial", preProcess = c("center", "scale"), data = training)
+  prediction_svm<-predict(model_svm, cv_set[,1:52])
+  #accuracy_proportion_svm<-sum(ifelse(prediction_svm == cv_set[,53], 1, 0))/nrow(cv_set)
+  #paste("Accuracy of radial SVM on cross validation set:", accuracy_proportion_svm) 
+  confusionMatrix(prediction_svm, cv_set[,53])
+  prediction_svm_test<-predict(model_svm, test)
+   paste("Results on test set")
+  prediction_svm_test
+#prediction_svm_test
+```
+
+(d) k-NN
+
+```{r, echo = FALSE, message = FALSE}
+# By k-Nearest Neighbor 
+  model_knn<-train(classe ~ ., method = "knn", preProcess = c("center", "scale"), data = training)
+  prediction_knn<-predict(model_knn, cv_set[,1:52])
+  #accuracy_proportion_knn<-sum(ifelse(prediction_knn == cv_set[,53], 1, 0))/nrow(cv_set)
+  #paste("Accuracy of k-NN on cross validation set:", accuracy_proportion_knn) 
+  confusionMatrix(prediction_knn, cv_set[,53])
+  prediction_knn_test<-predict(model_knn, test)
+   paste("Results on test set")
+   prediction_knn_test
+
+```
+
+\begin{center}
+\begin{tabular}{ |c|c|c| } 
+ \hline
+ Method & Accuracy on CV-set & Test Set Results\\ 
+\hline 
+Gradient Boosting & 0.979     & C A B A A E D B A A B C B A E E A B B B\\ 
+Random Forest     & 1.00      & B A B A A E D B A A B C B A E E A B B B\\ 
+Radial SVM & 0.926            & B A B A A E D B A A B C B A E E A B B B\\ 
+k-NN & 0.982                  & B A A A A E D B A A D C B A E E A B B B \\ 
+\hline
+\end{tabular}
+\end{center}
+
+I compared the test results, basically used the majority that the alphabet appear (or essentially corresponds to the random-forest output in my case). The random forest have the best performance and I used it for my test cases. My anwswer to the test cases are : 
+B A B A A E D B A A B C B A E E A B B B and they receive 20/20 score. 
+
+
+
